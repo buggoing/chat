@@ -1,11 +1,23 @@
 mod db;
+mod service;
 
 use db::mongo;
-use mongodb::{bson::doc, error::Result, options::ClientOptions, Client};
+use mongodb::{bson::doc, options::ClientOptions, Client};
 use std::time::{SystemTime, UNIX_EPOCH};
+use tonic::{transport::Server, Request, Response, Status};
+
+use service::{proto::greeter_server::GreeterServer, MyGreeter};
 
 #[tokio::main]
-async fn main() -> Result<()> {
+async fn main() -> Result<(), Box<dyn std::error::Error>> {
+    let addr = "[::1]:50051".parse()?;
+    println!("server listening in {}", addr);
+    let greeter = MyGreeter::default();
+    Server::builder()
+        .add_service(GreeterServer::new(greeter))
+        .serve(addr)
+        .await?;
+
     let mongo_uri = "mongodb://chat:chat@localhost:27017/?directconnection=true";
     let mongo_db_name = "chat";
     let mongo_client = mongo::DB::new(mongo_uri, mongo_db_name).await;
