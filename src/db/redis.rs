@@ -2,11 +2,11 @@ use redis::{Client, Commands, RedisResult};
 use std::time::Duration;
 
 #[derive(Debug)]
-pub struct mredis {
+pub struct Mredis {
     cli: Client,
 }
 
-impl mredis {
+impl Mredis {
     pub fn new(uri: &str) -> Self {
         let cli = match redis::Client::open("redis://127.0.0.1/") {
             Ok(cli) => cli,

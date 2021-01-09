@@ -1,8 +1,10 @@
+use super::error::Error;
 use mongodb::{
     bson::{self, doc, Bson, Bson::Document},
-    error::Error,
+    // error::Error,
     options::ClientOptions,
-    Client, Database,
+    Client,
+    Database,
 };
 use serde::{Deserialize, Serialize};
 use std::vec::Vec;
@@ -38,30 +40,75 @@ impl DB {
 
     pub async fn create_user(&self, user: &User) -> Result<(), Error> {
         let coll = self.db.collection(User::collection_name());
-        let doc = bson::to_document(user)?;
-        match coll.insert_one(doc, None).await {
-            Ok(_) => (),
-            Err(e) => eprintln!("mongo failed to insert user err: {}", e),
+        match bson::to_document(user) {
+            Ok(doc) => match coll.insert_one(doc, None).await {
+                Ok(_) => (),
+                Err(e) => eprintln!("mongo failed to insert user err: {}", e),
+            },
+            Err(e) => return Err(Error::Convert(e.to_string())),
         }
+
         Ok(())
     }
 
     pub async fn get_user(&self, filter: bson::Document) -> Result<Vec<User>, Error> {
         let coll = self.db.collection(User::collection_name());
-        let mut cursor = coll.find(filter, None).await?;
-        let mut users = Vec::new();
-        // Iterate over each document in the cursor, using serde to
-        // deserialize them
-        while let Some(res) = cursor.next().await {
-            match res {
-                Ok(doc) => {
-                    let user: User = bson::from_bson(Bson::Document(doc))?;
-                    users.push(user)
+        match coll.find(filter, None).await {
+            Ok(mut cursor) => {
+                let mut users = Vec::new();
+                // Iterate over each document in the cursor, using serde to
+                // deserialize them
+                while let Some(res) = cursor.next().await {
+                    match res {
+                        Ok(doc) => match bson::from_bson(Bson::Document(doc)) {
+                            Ok(user) => users.push(user),
+                            Err(e) => return Err(Error::Convert(e.to_string())),
+                        },
+                        Err(e) => eprintln!("mongo cursor err: {}", e),
+                    }
                 }
-                Err(e) => eprintln!("mongo cursor err: {}", e),
+                Ok(users)
+            }
+            Err(e) => {
+                eprintln!("mongo cursor err: {}", e);
+                return Err(Error::Operation);
             }
         }
-        Ok(users)
+    }
+
+    pub async fn create_post(&self, post: &Post) -> Result<(), Error> {
+        let coll = self.db.collection(Post::collection_name());
+        match bson::to_document(post) {
+            Ok(doc) => match coll.insert_one(doc, None).await {
+                Ok(_) => (),
+                Err(e) => {
+                    eprintln!("mongo failed to create post err: {}", e);
+                    return Err(Error::Operation);
+                }
+            },
+            Err(e) => return Err(Error::Convert(e.to_string())),
+        }
+        Ok(())
+    }
+
+    pub async fn get_post(&self, filter: bson::Document) -> Result<Post, Error> {
+        let coll = self.db.collection(Post::collection_name());
+        match coll.find_one(filter, None).await {
+            Ok(doc) => {
+                if let Some(doc) = doc {
+                    match bson::from_bson(Bson::Document(doc)) {
+                        Ok(post) => return Ok(post),
+                        Err(e) => return Err(Error::Convert(e.to_string())),
+                    }
+                } else {
+                    return Err(Error::NoRecord);
+                }
+            }
+            Err(e) => {
+                eprintln!("mongo failed to get post err: {}", e);
+                return Err(Error::Operation);
+            }
+        }
     }
 }
 
@@ -74,5 +121,19 @@ pub struct User {
 impl<'a> User {
     fn collection_name() -> &'a str {
         "user"
+    }
+}
+
+#[derive(Deserialize, Serialize, Debug)]
+pub struct Post {
+    id: String,
+    title: String,
+    content: String,
+    tag: String,
+}
+
+impl<'a> Post {
+    fn collection_name() -> &'a str {
+        "post"
     }
 }

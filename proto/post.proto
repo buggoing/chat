@@ -1,0 +1,24 @@
+syntax = "proto3";
+package post;
+
+service Post {
+  rpc get_post(GetPostRequest) returns (GetPostReply);
+  rpc create_post(CreatePostRequest) returns (CreatePostReply);
+}
+
+message GetPostRequest { string id = 1; }
+message GetPostReply {
+  message post {
+    string id = 1;
+    string content = 2;
+    int64 uid = 3;
+  }
+  repeated post posts = 1;
+}
+
+message CreatePostRequest {
+  string title = 1;
+  string content = 2;
+  string tag = 3;
+}
+message CreatePostReply {}
