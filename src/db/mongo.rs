@@ -126,10 +126,12 @@ impl<'a> User {
 
 #[derive(Deserialize, Serialize, Debug)]
 pub struct Post {
-    id: String,
-    title: String,
-    content: String,
-    tag: String,
+    #[serde(rename = "_id", skip_serializing_if = "Option::is_none")]
+    pub id: Option<bson::oid::ObjectId>,
+    pub uid: i64,
+    pub title: String,
+    pub content: String,
+    pub tag: String,
 }
 
 impl<'a> Post {
