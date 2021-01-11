@@ -23,12 +23,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     //     Err(e) => eprintln!("failed to create user err: {}", e),
     //     Ok(()) => (),
     // }
-    let filter = doc! {"name": "name"};
-    match mongo_client.get_user(filter).await {
-        Ok(users) => println!("users: {:?}", users),
-        Err(e) => eprintln!("failed to get users err: {}", e),
-    }
-
     let redis_uri = "redis://127.0.0.1";
     let redis_client = db::redis::Mredis::new(redis_uri);
     match redis_client.set("hello".to_string(), "world".to_string(), 0) {

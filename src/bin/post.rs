@@ -26,7 +26,7 @@ impl Post for MPost {
         request: Request<GetPostRequest>,
     ) -> Result<Response<GetPostReply>, Status> {
         let oid = ObjectId::with_string(&request.into_inner().id).unwrap();
-        match self.mongo.get_post(doc!("_id": oid)).await {
+        match self.mongo.find_one::<mongo::Post>(doc!("_id": oid)).await {
             Ok(post) => {
                 let mut posts = Vec::new();
                 let p = get_post_reply::Post {
@@ -54,7 +54,7 @@ impl Post for MPost {
             uid: 1,
             id: None,
         };
-        match self.mongo.create_post(&post).await {
+        match self.mongo.create_one(&post).await {
             Ok(_) => return Ok(Response::new(CreatePostReply {})),
             Err(e) => return Err(Status::new(Code::Internal, e.to_string())),
         }

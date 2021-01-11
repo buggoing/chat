@@ -16,7 +16,11 @@ pub struct DB {
     db: Database,
 }
 
-impl DB {
+pub trait Collection {
+    fn collection_name() -> &'static str;
+}
+
+impl<'a> DB {
     pub async fn new(uri: &str, db_name: &str) -> Self {
         let mut client_options = match ClientOptions::parse(uri).await {
             Ok(options) => options,
@@ -38,12 +42,18 @@ impl DB {
         }
     }
 
-    pub async fn create_user(&self, user: &User) -> Result<(), Error> {
-        let coll = self.db.collection(User::collection_name());
-        match bson::to_document(user) {
+    pub async fn create_one<T>(&self, data: &T) -> Result<(), Error>
+    where
+        T: Serialize + Collection,
+    {
+        let coll = self.db.collection(T::collection_name());
+        match bson::to_document(data) {
             Ok(doc) => match coll.insert_one(doc, None).await {
                 Ok(_) => (),
-                Err(e) => eprintln!("mongo failed to insert user err: {}", e),
+                Err(e) => {
+                    eprintln!("mongo failed to insert collection err: {}", e);
+                    return Err(Error::Operation);
+                }
             },
             Err(e) => return Err(Error::Convert(e.to_string())),
         }
@@ -51,8 +61,11 @@ impl DB {
         Ok(())
     }
 
-    pub async fn get_user(&self, filter: bson::Document) -> Result<Vec<User>, Error> {
-        let coll = self.db.collection(User::collection_name());
+    pub async fn get_some<T>(&self, filter: bson::Document) -> Result<Vec<T>, Error>
+    where
+        T: Serialize + for<'de> Deserialize<'de> + Collection,
+    {
+        let coll = self.db.collection(T::collection_name());
         match coll.find(filter, None).await {
             Ok(mut cursor) => {
                 let mut users = Vec::new();
@@ -76,23 +89,11 @@ impl DB {
         }
     }
 
-    pub async fn create_post(&self, post: &Post) -> Result<(), Error> {
-        let coll = self.db.collection(Post::collection_name());
-        match bson::to_document(post) {
-            Ok(doc) => match coll.insert_one(doc, None).await {
-                Ok(_) => (),
-                Err(e) => {
-                    eprintln!("mongo failed to create post err: {}", e);
-                    return Err(Error::Operation);
-                }
-            },
-            Err(e) => return Err(Error::Convert(e.to_string())),
-        }
-        Ok(())
-    }
-
-    pub async fn get_post(&self, filter: bson::Document) -> Result<Post, Error> {
-        let coll = self.db.collection(Post::collection_name());
+    pub async fn find_one<T>(&self, filter: bson::Document) -> Result<T, Error>
+    where
+        T: Serialize + Collection + for<'de> Deserialize<'de>,
+    {
+        let coll = self.db.collection(T::collection_name());
         match coll.find_one(filter, None).await {
             Ok(doc) => {
                 if let Some(doc) = doc {
@@ -118,8 +119,8 @@ pub struct User {
     pub create_time: i64,
 }
 
-impl<'a> User {
-    fn collection_name() -> &'a str {
+impl Collection for User {
+    fn collection_name() -> &'static str {
         "user"
     }
 }
@@ -134,8 +135,8 @@ pub struct Post {
     pub tag: String,
 }
 
-impl<'a> Post {
-    fn collection_name() -> &'a str {
+impl Collection for Post {
+    fn collection_name() -> &'static str {
         "post"
     }
 }
